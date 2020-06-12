@@ -3,6 +3,8 @@ Standalone version of Hybrid Triangular Solver, from
 
 Edit Makefile to include your system details. Run make. The output is
 ./hts_test, the unit tester. Run like this:
-    OMP_NUM_THREADS=16 ./hts_test
+    OMP_NUM_THREADS=16 ./hts_test -v
 
 The unit test code also serves as an example of how to interface with HTS.
+
+See hts_decl.hpp for API documentation.
