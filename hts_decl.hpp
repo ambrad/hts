@@ -43,8 +43,6 @@
 #include <exception>
 #include <string>
 
-namespace Experimental {
-
 namespace hts {
 /*! \brief Wraps std::exception.
  */
@@ -356,7 +354,5 @@ struct HTS {
     // If p or q are provided, then also provide size(T,1) workspace.
     Sclr* w = 0);
 };
-
-} // namespace Experimental
 
 #endif

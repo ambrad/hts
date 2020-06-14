@@ -50,7 +50,6 @@
 
 #include "hts.hpp"
 
-namespace Experimental {
 namespace htsimpl {
 static double urand () {
 #if 0 // Not all compilers have this, it seems.
@@ -474,6 +473,5 @@ template<typename Int, typename Size, typename Sclr> struct util {
   }
 };
 } // namespace htsimpl
-} // namespace Experimental
 
 #endif

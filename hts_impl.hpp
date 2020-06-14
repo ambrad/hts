@@ -45,11 +45,10 @@
 #include <limits>
 #include "hts.hpp"
 
-#ifdef USE_MKL
-# undef NO_BLAS
+#ifdef HTS_USE_MKL
+# undef HTS_NO_BLAS
 #endif
 
-namespace Experimental {
 namespace htsimpl {
 
 struct Direction {
@@ -738,7 +737,5 @@ struct HTS<Int, Size, Sclr>::Impl {
   typename htsimpl::Impl<Int, Size, Sclr>::TriSolver ts;
   typename htsimpl::Impl<Int, Size, Sclr>::Options o;
 };
-
-} // namespace Experimental
 
 #endif

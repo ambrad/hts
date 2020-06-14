@@ -1,10 +1,10 @@
 opt=-O3 -g
 CXX=g++
-CXXFLAGS=$(opt) -Wall -pedantic -fopenmp -DNO_BLAS -DUSE_COMPLEX
+CXXFLAGS=$(opt) -Wall -pedantic -fopenmp -DHTS_NO_BLAS -DHTS_USE_COMPLEX
 #                                         ^ for initial build convenience; use BLAS in practice
 LDFLAGS=-fopenmp
 # If using MKL:
-# CXXFLAGS=-DUSE_MKL
+# CXXFLAGS=-DHTS_USE_MKL
 # LDFLAGS=-mkl
 # On platforms supporting avx, include, e.g., -xcore-avx512
 

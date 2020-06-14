@@ -43,7 +43,6 @@
 #ifdef _OPENMP
 # include <omp.h>
 #else
-namespace Experimental {
 namespace htsimpl {
 // Protect against a header that has #define'd replacements for OpenMP
 // functions.
@@ -60,7 +59,6 @@ inline int omp_get_num_threads () { return 1; }
 inline int omp_get_thread_num () { return 0; }
 #endif
 }
-}
 #endif
 
 #include <cstdio>
@@ -73,11 +71,11 @@ inline int omp_get_thread_num () { return 0; }
 #include <algorithm>
 
 #define F77_BLAS_MANGLE(name,NAME) name ## _
-#ifdef USE_COMPLEX
+#ifdef HTS_USE_COMPLEX
 # include <complex>
 #endif
-#ifdef USE_MKL
-# ifdef USE_COMPLEX
+#ifdef HTS_USE_MKL
+# ifdef HTS_USE_COMPLEX
 #  ifndef MKL_Complex8
 #   define MKL_Complex8 std::complex<float>
 #  endif
@@ -90,18 +88,17 @@ inline int omp_get_thread_num () { return 0; }
 
 #include "hts_impl.hpp"
 
-//#define TIME
-#ifdef TIME
-//# define TIMENUM
+//#define HTS_TIME
+#ifdef HTS_TIME
+//# define HTS_TIMENUM
 # include <sys/time.h>
 #endif
 
-namespace Experimental {
 namespace htsimpl {
 
 static const int parfor_static_size = 20;
 
-#ifndef NO_BLAS
+#ifndef HTS_NO_BLAS
 //todo Make this configurable.
 typedef int blas_int;
 
@@ -117,7 +114,7 @@ extern "C" {
   void F77_BLAS_MANGLE(dgemm,DGEMM)(
     char*, char*, blas_int*, blas_int*, blas_int*, double*, double*, blas_int*,
     double*, blas_int*, double*, double*, blas_int*);
-#ifdef USE_COMPLEX
+#ifdef HTS_USE_COMPLEX
   void F77_BLAS_MANGLE(cgemm,CGEMM)(
     char*, char*, blas_int*, blas_int*, blas_int*, std::complex<float>*,
     std::complex<float>*, blas_int*, std::complex<float>*, blas_int*,
@@ -149,7 +146,7 @@ template<> inline void gemm<double> (
     const_cast<double*>(b), &ldb, &beta, const_cast<double*>(c), &ldc);
 }
 
-#ifdef USE_COMPLEX
+#ifdef HTS_USE_COMPLEX
 template<> inline void gemm<std::complex<float> > (
   char transa, char transb, blas_int m, blas_int nrhs, blas_int n,
   std::complex<float> alpha, const std::complex<float>* a, blas_int lda,
@@ -178,7 +175,7 @@ template<> inline void gemm<std::complex<double> > (
 #endif
 #endif
 
-#ifdef USE_MKL
+#ifdef HTS_USE_MKL
 // sparse A * dense x
 template<typename T> void hts_mkl_csrmm(
   const bool transp, const MKL_INT m, const MKL_INT n, const T* d,
@@ -219,7 +216,7 @@ template<> inline void hts_mkl_csrmm<double> (
       y + k*ldy);
 }
 
-#ifdef USE_COMPLEX
+#ifdef HTS_USE_COMPLEX
 template<> inline void hts_mkl_csrmm<std::complex<float> > (
   const bool transp, const MKL_INT m, const MKL_INT n,
   const std::complex<float>* d, const MKL_INT* ir, const MKL_INT* jc,
@@ -275,17 +272,17 @@ public:
             slvlls, slvlother, slvuls, slvuother,
             NTIMERS };
   static inline void init () {
-#ifdef TIME
+#ifdef HTS_TIME
     for (int i = 0; i < NTIMERS; ++i) et_[i] = 0;
 #endif
   }
   static inline void start (const Op op) {
-#ifdef TIME
+#ifdef HTS_TIME
     gettimeofday(&t_start_[op], 0);
 #endif
   }
   static inline void stop (const Op op) {
-#ifdef TIME
+#ifdef HTS_TIME
     timeval t2;
     gettimeofday(&t2, 0);
     const timeval& t1 = t_start_[op];
@@ -296,7 +293,7 @@ public:
 # define tpr(op) do {                                                   \
     printf("%20s %10.3e %10.1f\n", #op, et_[op], 100*et_[op]/tot);      \
   } while (0)
-#ifdef TIME
+#ifdef HTS_TIME
   static void print_setup () {
     const double tot = et_[total_pre];
     tpr(setup); tpr(transpose); tpr(tolower);
@@ -310,7 +307,7 @@ public:
     printf("%20s %10.3e %10.1f\n", "total", et_[total_pre], 100.0);
   }
 #endif
-#ifdef TIMENUM
+#ifdef HTS_TIMENUM
   static void print_numeric () {
     const double tot = et_[total_re];
     tpr(numthr); tpr(numpart); tpr(numls); tpr(numrbt); tpr(numrbm);
@@ -320,12 +317,12 @@ public:
 #endif
 #undef tpr
 private:
-#ifdef TIME
+#ifdef HTS_TIME
   static timeval t_start_[NTIMERS];
   static double et_[NTIMERS];
 #endif
 };
-#ifdef TIME
+#ifdef HTS_TIME
 timeval Timer::t_start_[Timer::NTIMERS];
 double Timer::et_[Timer::NTIMERS];
 #endif
@@ -501,11 +498,11 @@ void Impl<Int, Size, Sclr>::Options::print (std::ostream& os) const {
 }
 
 static void print_compiletime_options(std::ostream& os) {
-#ifdef NO_BLAS
-  os << " NO_BLAS";
+#ifdef HTS_NO_BLAS
+  os << " HTS_NO_BLAS";
 #endif
-#ifdef USE_MKL
-  os << " USE_MKL";
+#ifdef HTS_USE_MKL
+  os << " HTS_USE_MKL";
 #endif
 }
 
@@ -614,12 +611,12 @@ struct NumThreads {
 
 inline void set_num_threads (const int nthreads, NumThreads& save) {
   save.omp = omp_get_max_threads();
-#ifdef USE_MKL
+#ifdef HTS_USE_MKL
   save.mkl = mkl_get_max_threads();
   save.mkl_dynamic = mkl_get_dynamic();
 #endif
   omp_set_num_threads(nthreads);
-#ifdef USE_MKL
+#ifdef HTS_USE_MKL
   // We never use MKL threading.
   mkl_set_dynamic(0);
   mkl_set_num_threads(1);
@@ -627,7 +624,7 @@ inline void set_num_threads (const int nthreads, NumThreads& save) {
 }
 
 inline void restore_num_threads (const NumThreads& save) {
-#ifdef USE_MKL
+#ifdef HTS_USE_MKL
   mkl_set_dynamic(save.mkl_dynamic);
 #endif
 
@@ -636,7 +633,7 @@ inline void restore_num_threads (const NumThreads& save) {
   // does not promise OMP state will remain the same.
   return;
   omp_set_num_threads(save.omp);
-#ifdef USE_MKL
+#ifdef HTS_USE_MKL
   mkl_set_num_threads(save.mkl);
 #endif
 }
@@ -3140,7 +3137,7 @@ void Impl<Int, Size, Sclr>::LevelSetTri::p2p_init () {
   do {
     find_task_responsible_for_variable(pairs.data());
 #   pragma omp barrier
-#ifdef TIME
+#ifdef HTS_TIME
 #   pragma omp master
     Timer::start(Timer::lsp2p_3);
 #endif
@@ -3165,13 +3162,13 @@ void Impl<Int, Size, Sclr>::LevelSetTri::p2p_init () {
     for (Size i = 0; i < nnz; ++i)
       gc[i] = g[i];
     if ( ! ok) break;
-#ifdef TIME
+#ifdef HTS_TIME
 #   pragma omp master
     Timer::start(Timer::lsp2p_6);
 #endif
     prune_graph(gc, gp, g, gsz.data(), wrk.data(), max_gelen);
 #   pragma omp barrier
-#ifdef TIME
+#ifdef HTS_TIME
 #   pragma omp master
     Timer::stop(Timer::lsp2p_6);
 #endif
@@ -3621,7 +3618,7 @@ TriSolver::init (const ConstCrsMatrix* T, Int nthreads, const Int max_nrhs,
   Timer::start(Timer::setup);
   restore_num_threads(nthreads_state);
   Timer::stop(Timer::setup); Timer::stop(Timer::total_pre);
-#ifdef TIME
+#ifdef HTS_TIME
   Timer::print_setup();
 #endif
 }
@@ -3649,7 +3646,7 @@ TriSolver::reinit_numeric (const ConstCrsMatrix* T, const Real* r) {
   Timer::stop(Timer::numperm); Timer::start(Timer::numthr);
   restore_num_threads(nthreads_state);
   Timer::stop(Timer::numthr); Timer::stop(Timer::total_re);
-#ifdef TIMENUM
+#ifdef HTS_TIMENUM
   Timer::print_numeric();
 #endif
 }
@@ -3774,7 +3771,7 @@ inline void SerialBlock_n1Axpy_spars (
   }
 }
 
-#ifdef USE_MKL
+#ifdef HTS_USE_MKL
 template<> inline void SerialBlock_n1Axpy_spars<MKL_INT, MKL_INT, float> (
   const MKL_INT nr_, const MKL_INT nc_, const MKL_INT* const ir_,
   const MKL_INT* const jc_, const float* const d_, const float* x,
@@ -3806,7 +3803,7 @@ inline void Impl<Int, Size, Sclr>::SerialBlock::
 n1Axpy_dense (const Sclr* x, const Int ldx, const Int nrhs,
               Sclr* y, const Int ldy) const {
   assert(d_);
-#ifndef NO_BLAS
+#ifndef HTS_NO_BLAS
   gemm<Sclr>('t', 'n', nr_, nrhs, nc_, -1, d_, nc_, x, ldx, 1, y, ldy);
 #else
   for (Int g = 0; ; ) {
@@ -4435,7 +4432,5 @@ HTS<Int, Size, Sclr>::Options::Options () {
   min_parallel_rows = 64;
   pp_min_block_size = 256;
 }
-
-} // namespace Experimental
 
 #endif // INCLUDE_HTS_IMPL_DEF_HPP

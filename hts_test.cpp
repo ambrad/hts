@@ -52,7 +52,6 @@
 
 #include "hts_test_util.hpp"
 
-namespace Experimental {
 namespace htsimpl {
 template <typename T> bool is_complex () { return false; }
 template <> bool is_complex<std::complex<double> >() { return true; }
@@ -362,7 +361,6 @@ public:
   }
 };
 } // namespace htsimpl
-} // namespace Experimental
 
 int main (int argc, char** argv) {
   int verbose = 0;
@@ -371,13 +369,13 @@ int main (int argc, char** argv) {
     verbose = s == "-v" ? 1 : s == "-V" ? 2 : 0;
   }
   if (verbose >= 1) std::cout << "<int, int, double>\n";
-  int nerr = Experimental::htsimpl::Tester<int, int, double>::test(verbose);
-#ifdef USE_COMPLEX
+  int nerr = htsimpl::Tester<int, int, double>::test(verbose);
+#ifdef HTS_USE_COMPLEX
   if (verbose >= 1) std::cout << "\n<int, size_t, std::complex<double> >\n";
-  nerr += Experimental::htsimpl::Tester<int, size_t, std::complex<double> >::test(verbose);
+  nerr += htsimpl::Tester<int, size_t, std::complex<double> >::test(verbose);
 #endif
   if (verbose >= 1) std::cout << "\n<short, size_t, float>\n";
-  nerr += Experimental::htsimpl::Tester<short, size_t, float>::test(verbose);
+  nerr += htsimpl::Tester<short, size_t, float>::test(verbose);
   if (verbose >= 1) std::cout << "\n";
   std::cout << "HTS Test: " << (nerr ? "Failed" : "Passed") << "\n";
   return 0;
