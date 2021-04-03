@@ -254,7 +254,7 @@ template<> inline void hts_mkl_csrmm<std::complex<double> > (
 }
 #endif
 #endif
-//excise-begin
+
 namespace {
 class Timer {
 public:
@@ -327,7 +327,7 @@ timeval Timer::t_start_[Timer::NTIMERS];
 double Timer::et_[Timer::NTIMERS];
 #endif
 } // namespace
-//excise-end
+
 template<typename T> inline void touch (T* const p, const size_t n,
                                         const T& init = T()) {
   // 1 KB should be a safe lower bound on page size. Touch enough to touch every
@@ -339,6 +339,23 @@ template<typename T> inline void touch (T* const p, const size_t n,
   if (n) p[n-1] = init;
 #endif
 }
+
+// In the following memcpy and memset versions, n is count rather than number of
+// bytes.
+template<typename T>
+inline void memcpy (T* const dst, const T* const src, const std::size_t n) {
+  std::memcpy(dst, src, n*sizeof(T));
+}
+template<typename T>
+inline void memset (T* const dst, const T val, const std::size_t n) {
+  for (std::size_t i = 0; i < n; ++i) dst[i] = val;
+}
+template<> inline void
+memset (float* const dst, const float val, const std::size_t n)
+{ std::memset(dst, val, n*sizeof(float)); }
+template<> inline void
+memset (double* const dst, const double val, const std::size_t n)
+{ std::memset(dst, val, n*sizeof(double)); }
 
 template<typename T> inline T*
 allocn (const size_t n, const bool first_touch = false) {
@@ -451,8 +468,7 @@ inline void Array<T>::optclear_and_resize_ft (std::size_t n) {
 template<typename T>
 inline void Array<T>::optclear_and_resize (std::size_t n, const T& val) {
   optclear_and_resize(n);
-  for (std::size_t i = 0; i < n_; ++i)
-    memcpy(p_ + i, &val, sizeof(val));
+  for (std::size_t i = 0; i < n_; ++i) p_[i] = val;
 }
 
 template<typename T>
@@ -1077,9 +1093,9 @@ get_matrix_p (const CrsMatrix& A, const Array<Int>& p,
     const Int r = p[i];
     const Size nc = A.ir[r+1] - A.ir[r];
     sd.ir[i+1] = sd.ir[i] + nc;
-    memcpy(sd.jc + sd.ir[i], A.jc + A.ir[r], nc*sizeof(*sd.jc));
+    memcpy(sd.jc + sd.ir[i], A.jc + A.ir[r], nc);
     Sclr* const d_start = sd.d + sd.ir[i];
-    memcpy(d_start, A.d + A.ir[r], nc*sizeof(*sd.d));
+    memcpy(d_start, A.d + A.ir[r], nc);
     if (set_diag_reciprocal)
       d_start[nc-1] = 1.0/d_start[nc-1];
   }
@@ -1833,7 +1849,7 @@ SerialBlock::init_memory (const InitInfo& in) {
 template<typename Int, typename Size, typename Sclr>
 inline void Impl<Int, Size, Sclr>::
 SerialBlock::init_numeric (const CrsMatrix& A) {
-  if (is_dense_) memset(d_, 0, nr_*nc_*sizeof(*d_));
+  if (is_dense_) memset<Sclr>(d_, 0, nr_*nc_);
   reinit_numeric(A);
 }
 
@@ -1857,7 +1873,7 @@ SerialBlock::reinit_numeric_dense (const CrsMatrix& A) {
          j < irip1; ++j) {
       const Int lcol = A.jc[j] - c0_;
       if (lcol >= nc_) break;
-      const Int k = nc_*lrow + lcol;
+      const Size k = nc_*lrow + lcol;
       d_[k] = A.d[j];
     }
   }
@@ -2002,7 +2018,7 @@ template<typename Int, typename Size, typename Sclr>
 void Impl<Int, Size, Sclr>::
 OnDiagTri::reinit_numeric (const CrsMatrix& T, const bool invert) {
   if (d_) {
-    memset(d_, 0, ntri<Int>(this->n_)*sizeof(*d_));
+    memset<Sclr>(d_, 0, ntri<Int>(this->n_));
     Size nnz = 0;
     for (Int grow = this->r0_; grow < this->r0_ + this->n_; ++grow) {
       const Int lrow = grow - this->r0_;
@@ -2156,7 +2172,7 @@ inline void Impl<Int, Size, Sclr>::OnDiagTri::inv_copy () {
   for (int tid = 0; tid < nthreads(); ++tid) {
     Thread& t = t_[tid];
     const Int nr0 = ntri<Int>(t.r0);
-    memcpy(t.d, d_ + nr0, (ntri<Int>(t.r0 + t.nr) - nr0)*sizeof(*t.d));
+    memcpy(t.d, d_ + nr0, (ntri<Int>(t.r0 + t.nr) - nr0));
   }
 }
 
@@ -2597,7 +2613,7 @@ RecursiveTri::p2p_init () {
   nd_.t_idx.optclear_and_resize(tn);
   if (tn) nd_.t_idx[0] = 0;
   const Size nst = sn * nthreads_;
-  Array<std::vector<Size> > s_ids(nst, std::vector<Size>());
+  std::vector<std::vector<Size> > s_ids(nst, std::vector<Size>());
   std::vector<Size> t_ids;
   Array<Int> s_ids_cnt(nthreads_, 0);
   for (Int ti = 0; ti < tn; ++ti) {
@@ -2672,7 +2688,7 @@ RecursiveTri::p2p_init () {
   }
   s_ids.clear();
   nd_.t_ids.optclear_and_resize(t_ids.size());
-  memcpy(nd_.t_ids.data(), t_ids.data(), t_ids.size()*sizeof(Size));
+  memcpy(nd_.t_ids.data(), t_ids.data(), t_ids.size());
 }
 
 template<typename Int, typename Size, typename Sclr>
@@ -3215,7 +3231,7 @@ LevelSetTri::reinit_numeric (const CrsMatrix& T) {
       const Int r = p[i], nc = static_cast<Int>(T.ir[r+1] - T.ir[r]);
       assert(nc == static_cast<Int>(t.m->ir[i+1] - t.m->ir[i]));
       Sclr* const d_start = t.m->d + t.m->ir[i];
-      memcpy(d_start, T.d + T.ir[r], nc*sizeof(*t.m->d));
+      memcpy(d_start, T.d + T.ir[r], nc);
       d_start[nc-1] = 1.0/d_start[nc-1];
     }
   } while (0);
@@ -3280,11 +3296,9 @@ void Impl<Int, Size, Sclr>::Permuter::init (
   } else {
     // Just the internal (level set and data parallel) permutations.
     if ( ! lsis.empty())
-      memcpy(p_ + (is_lo_ ? 0 : dpis.size()), lsis.data(),
-             lsis.size()*sizeof(*p_));
+      memcpy(p_ + (is_lo_ ? 0 : dpis.size()), lsis.data(), lsis.size());
     if ( ! dpis.empty())
-      memcpy(p_ + (is_lo_ ? n - dpis.size() : 0), dpis.data(),
-             dpis.size()*sizeof(*p_));
+      memcpy(p_ + (is_lo_ ? n - dpis.size() : 0), dpis.data(),dpis.size());
     if ( ! is_lo_)
       for (Int i = 0; i < n_; ++i) p_[i] = n_ - p_[i] - 1;
   }
@@ -3293,8 +3307,7 @@ void Impl<Int, Size, Sclr>::Permuter::init (
 template<typename Int, typename Size, typename Sclr>
 inline void Impl<Int, Size, Sclr>::
 Permuter::reinit_numeric (const Real* scale) {
-  if (scale)
-    memcpy(scale_, scale, n_*sizeof(*scale_));
+  if (scale) memcpy(scale_, scale, n_);
 }
 
 template<typename Int, typename Size, typename Sclr>
@@ -3807,7 +3820,8 @@ n1Axpy_dense (const Sclr* x, const Int ldx, const Int nrhs,
   gemm<Sclr>('t', 'n', nr_, nrhs, nc_, -1, d_, nc_, x, ldx, 1, y, ldy);
 #else
   for (Int g = 0; ; ) {
-    for (Int i = 0, k = 0; i < nr_; ++i) {
+    Size k = 0;
+    for (Int i = 0; i < nr_; ++i) {
       Sclr a = 0;
       for (Int j = 0; j < nc_; ++j, ++k) a += d_[k]*x[j];
       y[i] -= a;
@@ -3948,6 +3962,7 @@ LevelSetTri::solve (const Sclr* b, Sclr* x, const Int ldx,
           while (*done != p2p_done_value) ;
         }
       }
+      // acquire
 #     pragma omp flush
       for (Int r = mvp_block_nc_ + p[ils];
            i < lsp_ilsp1;
@@ -3958,6 +3973,7 @@ LevelSetTri::solve (const Sclr* b, Sclr* x, const Int ldx,
           a -= x[jc[j]] * d[j];
         x[r] = a * d[j++];
       }
+      // release
 #     pragma omp flush
       if (ils == lsp_size_m2) break;
       // This thread and level is done.
@@ -3976,7 +3992,11 @@ inline void Impl<Int, Size, Sclr>::
 rbwait (volatile p2p_Done* const s_done, const Size* s_ids,
         const Int* const s_idx, const Int i, const p2p_Done done_symbol) {
   const Int si = s_idx[i], si1 = s_idx[i+1];
-  if (si == si1) return;
+  if (si == si1) {
+    // acquire
+#   pragma omp flush
+    return;
+  }
   const Size* id = s_ids + si;
   const Size* const idn = s_ids + si1;
   while (id != idn) {
@@ -3984,7 +4004,7 @@ rbwait (volatile p2p_Done* const s_done, const Size* s_ids,
     while (*d != done_symbol) ;
     ++id;
   }
-  // Make sure x is updated.
+  // acquire
 # pragma omp flush
 }
 
@@ -3996,27 +4016,33 @@ ondiag_solve (const OnDiagTri& t, Sclr* x, const Int ldx, const Int nrhs,
   const Int nthreads = t.nthreads();
   if (nthreads == 1) {
     t.solve(x, ldx, x, ldx, nrhs);
+    // release
+#   pragma omp flush
     *t_barrier = step;
   } else {
     // Solve T wrk_ = x.
     t.solve(x, ldx, wrk_.data(), t.get_n(), nrhs);
+    // release
+#   pragma omp flush
     { // Wait for the block row MVPs to finish.
       const Int done = (step << 1);
       inv_tri_done[tid] = done;
-#   pragma omp flush
       for (Int i = 0; i < nthreads; ++i)
         while (inv_tri_done[i] < done) ;
     }
+    // acquire
+#   pragma omp flush
     // Copy wrk_ to x.
     const Int row_start = t.block_row_start(tid), nr = t.block_nr(tid);
     for (Int irhs = 0; irhs < nrhs; ++irhs)
       memcpy(x + irhs*ldx + row_start,
              wrk_.data() + irhs*t.get_n() + row_start,
-             nr*sizeof(Sclr));
+             nr);
+    // release
+#   pragma omp flush
     { // Wait for the memcpy's to finish.
       const Int done = (step << 1) + 1;
       inv_tri_done[tid] = done;
-#     pragma omp flush
       //todo Not every thread necessarily needs this on-diag tri's solution, but
       // our dep graph doesn't encode that yet.
       for (Int i = 0; i < nthreads; ++i)
@@ -4024,7 +4050,6 @@ ondiag_solve (const OnDiagTri& t, Sclr* x, const Int ldx, const Int nrhs,
     }
     if (tid == 0)
       *t_barrier = step;
-#   pragma omp flush
   }
 }
 
@@ -4047,9 +4072,11 @@ RecursiveTri::solve (const Sclr* b, Sclr* x, const Int ldx,
   const Size* const s_ids = nd_.s_ids[tid].empty() ? 0 : nd_.s_ids[tid].data();
   const Int* const s_idx = nd_.s_idx[tid].empty() ? 0 : nd_.s_idx[tid].data();
   const p2p_Done done_symbol = nd_.done_symbol;
-  { const OnDiagTri& t = nd_.t[0];
+  {
+    const OnDiagTri& t = nd_.t[0];
     if (tid < t.nthreads())
-      ondiag_solve(t, x, ldx, nrhs, tid, 0, t_barrier, inv_tri_done); }
+      ondiag_solve(t, x, ldx, nrhs, tid, 0, t_barrier, inv_tri_done);
+  }
   if ( ! nd_.os.empty()) {
     os += nd_.t[0].get_n();
     x_osi = x + nd_.os[0];
@@ -4065,13 +4092,13 @@ RecursiveTri::solve (const Sclr* b, Sclr* x, const Int ldx,
     if ( ! s.empty() && (s.parallel() || tid == 0)) {
       rbwait(s_done, s_ids, s_idx, i, done_symbol);
       s.n1Axpy(x_osi, ldx, nrhs, x_os, ldx, tid);
-      s_done[rb_p2p_sub2ind(i, tid)] = done_symbol;
+      // release
 #     pragma omp flush
+      s_done[rb_p2p_sub2ind(i, tid)] = done_symbol;
     }
     if (tid < t.nthreads()) {
       rbwait(s_done, t_ids, t_idx, i, done_symbol);
       ondiag_solve(t, x_os, ldx, nrhs, tid, i+1, t_barrier, inv_tri_done);
-#     pragma omp flush
     }
     os += t.get_n();
     x_osi = x + nd_.os[i+1];
@@ -4255,10 +4282,10 @@ void trisolve_serial (
 
     // x(q) = x optionally.
     if (q) {
-      if ( ! p) memcpy(w, x, T.m*sizeof(*ix));
+      if ( ! p) memcpy(w, x, T.m);
       for (Int r = 0; r < T.m; ++r) ix[q[r]] = w[r];
     } else if (p)
-      memcpy(ix, w, T.m*sizeof(*ix));
+      memcpy(ix, w, T.m);
 
     ix += T.m;
   }

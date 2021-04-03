@@ -303,9 +303,9 @@ public:
     // Test our own transpose to make sure it's OK for subsequent use.
     nerr += test_transpose(verbose, 277);
 
-    const int ns[] = {1, 2, 3, 21, 300};
+    const int ns[] = {21, 1, 2, 3, 121, 256, 300, 777};
     const int max_nthreads = omp_get_max_threads();
-    const int nthreads_step = max_nthreads > 40 ? 11 : 3;
+    const int nthreads_step = max_nthreads > 128 ? 11 : 3;
 
     TestOptions to;
     to.block_size = 3; // only for block_sparse
